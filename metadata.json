@@ -1,0 +1,5 @@
+{
+  "name": "SyncNote AI",
+  "description": "A real-time collaborative note editor featuring Supabase synchronization and Gemini-powered AI writing assistance.",
+  "requestFramePermissions": []
+}

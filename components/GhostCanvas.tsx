@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { DrawPoint, AppUser, PresenceState } from '../types';
@@ -25,10 +24,6 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelRef = useRef<any>(null);
-
-  useEffect(() => {
-    console.log(`[GhostSync] User: ${currentUser} | Pen: ${penEnabled} | Mode: ${activeMode}`);
-  }, [penEnabled, currentUser, activeMode]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -58,14 +53,9 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
 
     channel
       .on('broadcast', { event: 'draw' }, ({ payload }: { payload: DrawPoint }) => {
-        // Convert normalized coords (0-1) back to pixels
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const x1 = payload.x1 * canvas.width;
-        const y1 = payload.y1 * canvas.height;
-        const x2 = payload.x2 * canvas.width;
-        const y2 = payload.y2 * canvas.height;
-        drawOnCanvas(x1, y1, x2, y2, payload.color, payload.width);
+        // PM Fix: Coordinates arrive as percentages (0.0 to 1.0).
+        // Multiply them by the local canvas dimensions to maintain scaling.
+        drawOnCanvas(payload.x1, payload.y1, payload.x2, payload.y2, payload.color, payload.width);
       })
       .on('broadcast', { event: 'clear' }, () => {
         clearLocalCanvas();
@@ -107,19 +97,25 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // PM Fix: Receiver de-normalizes from percentage to local pixels
+    const rx1 = x1 * canvas.width;
+    const ry1 = y1 * canvas.height;
+    const rx2 = x2 * canvas.width;
+    const ry2 = y2 * canvas.height;
+
     ctx.beginPath();
     ctx.strokeStyle = c;
     ctx.lineWidth = w;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Midpoint Algorithm for smooth Bezier curves
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
+    // PM Fix: Smoothing algorithm using quadratic curves and midpoint destination.
+    // This creates a smoother line compared to simple lineTo segments.
+    const midX = (rx1 + rx2) / 2;
+    const midY = (ry1 + ry2) / 2;
     
-    ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(x1, y1, midX, midY);
-    // Removed redundant lineTo(x2, y2) to prevent sharp corner artifacts
+    ctx.moveTo(rx1, ry1);
+    ctx.quadraticCurveTo(rx1, ry1, midX, midY);
     ctx.stroke();
   };
 
@@ -168,21 +164,24 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || !lastPoint || !penEnabled || activeMode !== 'canvas') return;
     const coords = getCoordinates(e);
-    if (!coords) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!coords || !canvasRef.current) return;
 
-    drawOnCanvas(lastPoint.x, lastPoint.y, coords.x, coords.y, color, width);
+    // PM Fix: Broadcaster normalizes local pixels to percentages (0.0 - 1.0)
+    const normX1 = lastPoint.x / canvasRef.current.width;
+    const normY1 = lastPoint.y / canvasRef.current.height;
+    const normX2 = coords.x / canvasRef.current.width;
+    const normY2 = coords.y / canvasRef.current.height;
 
-    // Broadcast using normalized (0-1) coordinates for cross-device consistency
+    drawOnCanvas(normX1, normY1, normX2, normY2, color, width);
+
     channelRef.current?.send({
       type: 'broadcast',
       event: 'draw',
       payload: { 
-        x1: lastPoint.x / canvas.width, 
-        y1: lastPoint.y / canvas.height, 
-        x2: coords.x / canvas.width, 
-        y2: coords.y / canvas.height, 
+        x1: normX1, 
+        y1: normY1, 
+        x2: normX2, 
+        y2: normY2, 
         color, 
         width 
       },
@@ -196,15 +195,12 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     setLastPoint(null);
   };
 
-  const togglePen = () => {
-    setPenEnabled(prev => !prev);
-  };
-
   return (
     <div className="fixed inset-0 bg-transparent pointer-events-none overflow-hidden select-none">
       
       {/* Ghost Content Layer */}
       <div className="absolute inset-0 z-0">
+        {/* PM Fix: Conditional rendering to prevent NoteEditor from blocking interactions in Canvas mode. */}
         {activeMode === 'canvas' ? (
           <canvas
             ref={canvasRef}
@@ -224,7 +220,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         )}
       </div>
 
-      {/* Heartbeat Status Overlay */}
+      {/* UI Overlays - Higher Z-Index */}
       {partnerStatus && (
         <div className={`fixed top-8 left-8 flex items-center space-x-3 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-2xl transition-all duration-1000 z-50 ${
           isPartnerPulse ? 'ring-4 ring-rose-500/50 scale-110 shadow-rose-500/30' : ''
@@ -245,12 +241,16 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         </div>
       )}
 
-      {/* Floating Toolbar - Right side (Z-50 to stay above everything) */}
+      {/* Floating Toolbar - Right side (Z-50) */}
       <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-5 bg-white/5 backdrop-blur-3xl p-4 rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto transition-all duration-300 hover:bg-white/10 z-50">
         
         {/* Lock/Unlock Edit Toggle */}
         <button
-          onClick={togglePen}
+          onClick={() => {
+            const next = !penEnabled;
+            console.log(`[GhostSync] User: ${currentUser} | Pen toggle clicked: ${next}`);
+            setPenEnabled(next);
+          }}
           className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
             penEnabled ? 'bg-rose-500 shadow-lg shadow-rose-500/40 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
           }`}

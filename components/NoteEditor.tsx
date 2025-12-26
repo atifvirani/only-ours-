@@ -44,9 +44,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
         { event: 'UPDATE', schema: 'public', table: 'shared_content', filter: 'id=eq.1' },
         (payload) => {
           const newText = payload.new.text_note;
-          
-          // PM Fix: Only update local state if the user is not currently focused on the textarea.
-          // This prevents the cursor from jumping to the end while typing.
           const isFocused = document.activeElement === textareaRef.current;
           
           if (newText !== content && !isFocused) {
@@ -88,23 +85,23 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
   }, [content, lastSavedContent, saveNote]);
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-8 md:p-20 z-0 pointer-events-none">
+    <div className="fixed inset-0 flex items-center justify-center p-6 md:p-20 z-0 pointer-events-none pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
       <textarea
         ref={textareaRef}
         value={content}
         onChange={(e) => setContent(e.target.value)}
         readOnly={!isEditable}
-        placeholder={isEditable ? "Type something here..." : "Partner is active..."}
-        className={`w-full h-full bg-transparent text-white text-2xl md:text-4xl font-light leading-relaxed outline-none border-none resize-none transition-all duration-500 placeholder-white/5 ${
+        placeholder={isEditable ? "Type something..." : "Partner typing..."}
+        className={`w-full h-full bg-transparent text-white text-3xl md:text-5xl font-light leading-snug outline-none border-none resize-none transition-all duration-500 placeholder-white/5 text-center ${
           isEditable ? 'pointer-events-auto cursor-text opacity-100' : 'pointer-events-none opacity-40 select-none'
         }`}
         spellCheck={false}
       />
       
       {/* Subtle Status Info */}
-      <div className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center space-x-4 opacity-20 pointer-events-none">
-        <span className="text-[10px] text-white font-bold uppercase tracking-[0.2em]">
-          {status === 'syncing' ? 'Syncing...' : status === 'local-edit' ? 'Unsaved' : 'Cloud Saved'}
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-1/2 -translate-x-1/2 flex items-center space-x-4 opacity-10 pointer-events-none">
+        <span className="text-[9px] text-white font-bold uppercase tracking-[0.3em]">
+          {status === 'syncing' ? 'Cloud Syncing' : status === 'local-edit' ? 'Unsaved' : 'Synced'}
         </span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 export interface SharedNote {
   id: number;
   text_note: string;
+  drawing_data?: string; // Base64 snapshot for persistence
   updated_at?: string;
 }
 

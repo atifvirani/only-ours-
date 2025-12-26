@@ -8,10 +8,10 @@ export interface SharedNote {
 export type SyncStatus = 'synced' | 'syncing' | 'error' | 'local-edit';
 
 export interface DrawPoint {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  x1: number; // Normalized 0-1
+  y1: number; // Normalized 0-1
+  x2: number; // Normalized 0-1
+  y2: number; // Normalized 0-1
   color: string;
   width: number;
 }

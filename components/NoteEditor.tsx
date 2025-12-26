@@ -14,6 +14,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
   
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRemoteUpdateRef = useRef<boolean>(false);
+  const isFocused = useRef<boolean>(false);
 
   const fetchNote = useCallback(async () => {
     try {
@@ -44,7 +45,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
         { event: 'UPDATE', schema: 'public', table: 'shared_content', filter: 'id=eq.1' },
         (payload) => {
           const newText = payload.new.text_note;
-          if (newText !== content) {
+          // CRITICAL: Only update if not focused to prevent cursor jump
+          if (!isFocused.current && newText !== content) {
             isRemoteUpdateRef.current = true;
             setContent(newText);
             setLastSavedContent(newText);
@@ -83,9 +85,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
   }, [content, lastSavedContent, saveNote]);
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-8 md:p-20 z-0">
+    <div className="fixed inset-0 flex items-center justify-center p-8 md:p-20 z-0 pointer-events-none">
       <textarea
         value={content}
+        onFocus={() => { isFocused.current = true; }}
+        onBlur={() => { isFocused.current = false; }}
         onChange={(e) => setContent(e.target.value)}
         readOnly={!isEditable}
         placeholder={isEditable ? "Type something here..." : "Partner is active..."}

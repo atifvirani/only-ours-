@@ -26,9 +26,8 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
 
   const channelRef = useRef<any>(null);
 
-  // Debug pen status for Atif/Adiba
   useEffect(() => {
-    console.log(`[GhostSync] User: ${currentUser} | Pen Enabled: ${penEnabled} | Mode: ${activeMode}`);
+    console.log(`[GhostSync] User: ${currentUser} | Pen: ${penEnabled} | Mode: ${activeMode}`);
   }, [penEnabled, currentUser, activeMode]);
 
   useEffect(() => {
@@ -59,7 +58,14 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
 
     channel
       .on('broadcast', { event: 'draw' }, ({ payload }: { payload: DrawPoint }) => {
-        drawOnCanvas(payload.x1, payload.y1, payload.x2, payload.y2, payload.color, payload.width);
+        // Convert normalized coords (0-1) back to pixels
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const x1 = payload.x1 * canvas.width;
+        const y1 = payload.y1 * canvas.height;
+        const x2 = payload.x2 * canvas.width;
+        const y2 = payload.y2 * canvas.height;
+        drawOnCanvas(x1, y1, x2, y2, payload.color, payload.width);
       })
       .on('broadcast', { event: 'clear' }, () => {
         clearLocalCanvas();
@@ -87,7 +93,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [currentUser]);
+  }, [currentUser, partnerStatus?.isOnline]);
 
   useEffect(() => {
     if (channelRef.current && currentUser) {
@@ -107,14 +113,13 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Improved Bezier smoothing logic for "high-quality ink look"
+    // Midpoint Algorithm for smooth Bezier curves
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
     
     ctx.moveTo(x1, y1);
-    // Control point is the start, end is the midpoint for continuous smoothness
     ctx.quadraticCurveTo(x1, y1, midX, midY);
-    ctx.lineTo(x2, y2);
+    // Removed redundant lineTo(x2, y2) to prevent sharp corner artifacts
     ctx.stroke();
   };
 
@@ -164,13 +169,23 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     if (!isDrawing || !lastPoint || !penEnabled || activeMode !== 'canvas') return;
     const coords = getCoordinates(e);
     if (!coords) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     drawOnCanvas(lastPoint.x, lastPoint.y, coords.x, coords.y, color, width);
 
+    // Broadcast using normalized (0-1) coordinates for cross-device consistency
     channelRef.current?.send({
       type: 'broadcast',
       event: 'draw',
-      payload: { x1: lastPoint.x, y1: lastPoint.y, x2: coords.x, y2: coords.y, color, width },
+      payload: { 
+        x1: lastPoint.x / canvas.width, 
+        y1: lastPoint.y / canvas.height, 
+        x2: coords.x / canvas.width, 
+        y2: coords.y / canvas.height, 
+        color, 
+        width 
+      },
     });
 
     setLastPoint(coords);
@@ -182,9 +197,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
   };
 
   const togglePen = () => {
-    const newStatus = !penEnabled;
-    console.log(`[GhostSync] Toggle Pen Clicked. New Pen Status: ${newStatus}`);
-    setPenEnabled(newStatus);
+    setPenEnabled(prev => !prev);
   };
 
   return (
@@ -211,7 +224,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         )}
       </div>
 
-      {/* Heartbeat Status */}
+      {/* Heartbeat Status Overlay */}
       {partnerStatus && (
         <div className={`fixed top-8 left-8 flex items-center space-x-3 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-2xl transition-all duration-1000 z-50 ${
           isPartnerPulse ? 'ring-4 ring-rose-500/50 scale-110 shadow-rose-500/30' : ''
@@ -223,7 +236,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
             </span>
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col pointer-events-none">
             <span className="text-white text-xs font-bold uppercase tracking-wider">{partnerStatus.user} is active</span>
             {partnerStatus.isDrawing && (
               <span className="text-rose-300 text-[10px] font-medium animate-pulse">Drawing right now...</span>
@@ -232,7 +245,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         </div>
       )}
 
-      {/* Floating Toolbar - Right side */}
+      {/* Floating Toolbar - Right side (Z-50 to stay above everything) */}
       <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-5 bg-white/5 backdrop-blur-3xl p-4 rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto transition-all duration-300 hover:bg-white/10 z-50">
         
         {/* Lock/Unlock Edit Toggle */}
@@ -307,7 +320,7 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         </button>
       </div>
 
-      <div className="fixed bottom-6 right-6 text-white/10 text-[9px] font-black uppercase tracking-[0.4em] z-50">
+      <div className="fixed bottom-6 right-6 text-white/10 text-[9px] font-black uppercase tracking-[0.4em] z-50 pointer-events-none">
         Sync: Active • {currentUser} • {activeMode.toUpperCase()}
       </div>
 

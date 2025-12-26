@@ -26,6 +26,11 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
 
   const channelRef = useRef<any>(null);
 
+  // Debug pen status for Atif/Adiba
+  useEffect(() => {
+    console.log(`[GhostSync] User: ${currentUser} | Pen Enabled: ${penEnabled} | Mode: ${activeMode}`);
+  }, [penEnabled, currentUser, activeMode]);
+
   useEffect(() => {
     const handleResize = () => {
       if (canvasRef.current) {
@@ -102,11 +107,12 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Bezier smoothing: use midpoint logic
+    // Improved Bezier smoothing logic for "high-quality ink look"
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
     
     ctx.moveTo(x1, y1);
+    // Control point is the start, end is the midpoint for continuous smoothness
     ctx.quadraticCurveTo(x1, y1, midX, midY);
     ctx.lineTo(x2, y2);
     ctx.stroke();
@@ -175,31 +181,39 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
     setLastPoint(null);
   };
 
+  const togglePen = () => {
+    const newStatus = !penEnabled;
+    console.log(`[GhostSync] Toggle Pen Clicked. New Pen Status: ${newStatus}`);
+    setPenEnabled(newStatus);
+  };
+
   return (
     <div className="fixed inset-0 bg-transparent pointer-events-none overflow-hidden select-none">
       
       {/* Ghost Content Layer */}
-      {activeMode === 'canvas' ? (
-        <canvas
-          ref={canvasRef}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-          className={`absolute inset-0 block transition-opacity duration-700 ${
-            penEnabled ? 'pointer-events-auto cursor-crosshair opacity-100' : 'pointer-events-none opacity-80'
-          }`}
-        />
-      ) : (
-        <NoteEditor isEditable={penEnabled} />
-      )}
+      <div className="absolute inset-0 z-0">
+        {activeMode === 'canvas' ? (
+          <canvas
+            ref={canvasRef}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+            className={`absolute inset-0 block transition-opacity duration-700 ${
+              penEnabled ? 'pointer-events-auto cursor-crosshair opacity-100' : 'pointer-events-none opacity-80'
+            }`}
+          />
+        ) : (
+          <NoteEditor isEditable={penEnabled} />
+        )}
+      </div>
 
       {/* Heartbeat Status */}
       {partnerStatus && (
-        <div className={`fixed top-8 left-8 flex items-center space-x-3 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-2xl transition-all duration-1000 ${
+        <div className={`fixed top-8 left-8 flex items-center space-x-3 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-2xl transition-all duration-1000 z-50 ${
           isPartnerPulse ? 'ring-4 ring-rose-500/50 scale-110 shadow-rose-500/30' : ''
         }`}>
           <div className="relative">
@@ -210,24 +224,24 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-white text-xs font-bold uppercase tracking-wider">{partnerStatus.user} joined</span>
+            <span className="text-white text-xs font-bold uppercase tracking-wider">{partnerStatus.user} is active</span>
             {partnerStatus.isDrawing && (
-              <span className="text-rose-300 text-[10px] font-medium animate-pulse">Is active now...</span>
+              <span className="text-rose-300 text-[10px] font-medium animate-pulse">Drawing right now...</span>
             )}
           </div>
         </div>
       )}
 
-      {/* Floating Toolbar */}
-      <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-5 bg-white/5 backdrop-blur-3xl p-4 rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto transition-all duration-300 hover:bg-white/10">
+      {/* Floating Toolbar - Right side */}
+      <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-5 bg-white/5 backdrop-blur-3xl p-4 rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto transition-all duration-300 hover:bg-white/10 z-50">
         
-        {/* Mode Toggle (Pen) */}
+        {/* Lock/Unlock Edit Toggle */}
         <button
-          onClick={() => setPenEnabled(!penEnabled)}
+          onClick={togglePen}
           className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
             penEnabled ? 'bg-rose-500 shadow-lg shadow-rose-500/40 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
           }`}
-          title={penEnabled ? 'Lock Edit' : 'Enable Edit'}
+          title={penEnabled ? 'Lock Workspace' : 'Unlock Workspace'}
         >
           {penEnabled ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -236,13 +250,13 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
           )}
         </button>
 
-        {/* Text Mode Toggle */}
+        {/* Text/Canvas Mode Toggle */}
         <button
           onClick={() => setActiveMode(activeMode === 'canvas' ? 'text' : 'canvas')}
           className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
             activeMode === 'text' ? 'bg-white text-black shadow-lg shadow-white/20' : 'bg-white/5 text-white/50 hover:bg-white/10'
           }`}
-          title="Switch between Canvas & Text"
+          title="Toggle Draw/Write"
         >
           <span className="text-xl font-black">{activeMode === 'canvas' ? 'T' : '✎'}</span>
         </button>
@@ -293,8 +307,8 @@ export const GhostCanvas: React.FC<GhostCanvasProps> = ({ currentUser }) => {
         </button>
       </div>
 
-      <div className="fixed bottom-6 right-6 text-white/10 text-[9px] font-black uppercase tracking-[0.4em]">
-        {currentUser} • {activeMode.toUpperCase()}
+      <div className="fixed bottom-6 right-6 text-white/10 text-[9px] font-black uppercase tracking-[0.4em] z-50">
+        Sync: Active • {currentUser} • {activeMode.toUpperCase()}
       </div>
 
       <style>{`

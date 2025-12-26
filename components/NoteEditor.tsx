@@ -89,14 +89,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ isEditable }) => {
         onChange={(e) => setContent(e.target.value)}
         readOnly={!isEditable}
         placeholder={isEditable ? "Type something here..." : "Partner is active..."}
-        className={`w-full h-full bg-transparent text-white text-2xl md:text-4xl font-light leading-relaxed outline-none border-none resize-none transition-all duration-500 placeholder-white/10 ${
+        className={`w-full h-full bg-transparent text-white text-2xl md:text-4xl font-light leading-relaxed outline-none border-none resize-none transition-all duration-500 placeholder-white/5 ${
           isEditable ? 'pointer-events-auto cursor-text opacity-100' : 'pointer-events-none opacity-40 select-none'
         }`}
         spellCheck={false}
       />
       
       {/* Subtle Status Info */}
-      <div className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center space-x-4 opacity-30">
+      <div className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center space-x-4 opacity-20 pointer-events-none">
         <span className="text-[10px] text-white font-bold uppercase tracking-[0.2em]">
           {status === 'syncing' ? 'Syncing...' : status === 'local-edit' ? 'Unsaved' : 'Cloud Saved'}
         </span>

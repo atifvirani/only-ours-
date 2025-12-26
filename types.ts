@@ -22,3 +22,11 @@ export interface DrawPoint {
   color: string;
   width: number;
 }
+
+export type AppUser = 'Atif' | 'Adiba' | null;
+
+export interface PresenceState {
+  user: string;
+  isDrawing: boolean;
+  onlineAt: string;
+}
